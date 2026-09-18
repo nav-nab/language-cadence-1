@@ -43,22 +43,30 @@ class ModelConfig:
     P: int = 45           # the period being tested -- THIS is what the Stage 4 sweep varies
     # Settled via a calibration pilot (see README's "Stage 3 decisions"
     # section and the project write-up notes for the full comparison and
-    # the reasoning): additive injection with amplitude=0.1 reached the
-    # lowest eval loss of everything tried (7 short runs: additive at
-    # amplitude 0.0/0.1/0.25/0.5/1.0/2.0/4.0, plus concat), narrowly
-    # beating concat. This is a low-fidelity pilot result (one seed, one
-    # language, short context/run), not a rigorous hyperparameter search
-    # -- reasonable enough to fix for Stage 4, but worth re-checking if
-    # Stage 4/5 results look off in a way amplitude could explain.
-    pe_injection: PEInjectionMethod = "additive"
+    # the reasoning): 7 short runs compared additive at amplitude in
+    # {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Additive at
+    # amplitude=0.1 reached the numerically lowest eval loss, but only
+    # narrowly ahead of concat (2.243 vs 2.264 -- a margin well within
+    # what a single-seed, short, one-language pilot could produce as
+    # noise). Chose CONCAT despite not being the literal top score,
+    # because it has a real structural advantage the numbers alone don't
+    # capture: no amplitude hyperparameter to get wrong. Amplitude turned
+    # out to have a narrow, saturating sweet spot (see pe_amplitude's
+    # docstring below) governed by an architecture detail unrelated to
+    # the actual cadence hypothesis -- concat sidesteps that fragility
+    # entirely.
+    pe_injection: PEInjectionMethod = "concat"
     # Only used when pe_injection == "additive": x = token_emb + pe_amplitude * Pi.
-    # Must stay fixed across the whole P-sweep once chosen, to avoid
-    # confounding amplitude with periodicity -- see the pilot finding
-    # above for why: past a certain amplitude, every transformer block's
+    # Not used by the chosen "concat" default above -- kept configurable
+    # (and documented) since additive remains available for later
+    # comparison/ablation. Must stay fixed across the whole P-sweep if
+    # ever switched back to additive, to avoid confounding amplitude with
+    # periodicity: past a certain amplitude, every transformer block's
     # leading LayerNorm makes further increases invisible anyway (it's
-    # scale-invariant), so amplitude only matters in the small-to-moderate
-    # range where it's actually competing with the token embedding's own
-    # magnitude.
+    # scale-invariant, LayerNorm(c*v) == LayerNorm(v)), so amplitude only
+    # matters in the small-to-moderate range where it's actually
+    # competing with the token embedding's own magnitude. 0.1 was the
+    # pilot's best-performing value in that range.
     pe_amplitude: float = 0.1
 
     def __post_init__(self):

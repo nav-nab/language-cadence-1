@@ -154,20 +154,22 @@ documented here, but are easy to revisit if they turn out to matter.
   figures in `figures/pilot_*.png`): 7 short training runs (English only,
   P=45 fixed, seq_len=128, D=64, 2 layers, 2000 steps, one seed held
   constant across runs) comparing additive at amplitude in
-  {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Chosen defaults:
-  **`pe_injection="additive"`, `pe_amplitude=0.1`** -- reached the lowest
-  eval loss of everything tried, narrowly ahead of concat (second place).
-  Two things worth carrying into the write-up (also noted in project
-  memory): (1) amplitude has a *bounded* meaningful range in this
-  architecture -- amplitude=2.0 and amplitude=4.0 produced numerically
-  matching results, because every transformer block's leading LayerNorm
-  is scale-invariant (`LayerNorm(c*v) == LayerNorm(v)`), so past a
-  certain point the token embedding becomes negligible next to
-  amplitude*Pi and further scaling is invisible; (2) some positional
-  signal clearly helps (amplitude=0.1 beat amplitude=0.0, i.e. no
-  positional signal at all), but too much hurts monotonically past a
-  fairly small optimum -- consistent with large amplitude drowning out
-  token-identity information relative to position. This pilot is
+  {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Additive at
+  amplitude=0.1 reached the numerically lowest eval loss (2.243), but
+  only narrowly ahead of concat (2.264) -- a margin well within what a
+  single-seed, short, one-language pilot could produce as noise. **Chose
+  `pe_injection="concat"`** despite not being the literal top score,
+  because of a structural advantage the numbers alone don't capture: no
+  amplitude hyperparameter to get wrong. Amplitude turned out to have a
+  narrow, saturating sweet spot -- amplitude=2.0 and amplitude=4.0
+  produced numerically matching results, because every transformer
+  block's leading LayerNorm is scale-invariant
+  (`LayerNorm(c*v) == LayerNorm(v)`), so past a certain point the token
+  embedding becomes negligible next to amplitude*Pi and further scaling
+  is invisible -- an architecture detail unrelated to the actual cadence
+  hypothesis, which concat sidesteps entirely. (`pe_amplitude` stays
+  configurable at `0.1`, the pilot's best in-range value, for anyone
+  switching back to additive later for comparison.) This pilot is
   explicitly low-fidelity (one seed, one language, short context/run) --
   good enough to fix reasonable Stage 4 defaults, not a substitute for
   what Stage 4/5 will actually show; per the project notes, whichever
