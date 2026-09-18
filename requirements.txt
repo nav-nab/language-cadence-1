@@ -1,0 +1,11 @@
+# Core
+numpy>=1.26
+torch>=2.2   # NOTE: not yet installed on this machine (see README) --
+             # this environment's network access is restricted, so
+             # install this yourself with your usual `pip install torch`
+             # (or the right command for your platform/GPU from
+             # pytorch.org) before Stage 3 (model code).
+
+# Dev / testing (optional -- tests also run with plain `python3 -m unittest`)
+pytest>=7.0
+matplotlib>=3.8   # for Stage 2/5 plots

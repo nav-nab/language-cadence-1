@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Raw downloaded corpora and pipeline outputs -- large, regenerable, not source
+data/raw/*.tgz
+data/processed/
+
+# macOS
+.DS_Store
