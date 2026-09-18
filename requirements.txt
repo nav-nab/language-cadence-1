@@ -6,6 +6,9 @@ torch>=2.2   # NOTE: not yet installed on this machine (see README) --
              # (or the right command for your platform/GPU from
              # pytorch.org) before Stage 3 (model code).
 
-# Dev / testing (optional -- tests also run with plain `python3 -m unittest`)
+# Dev / testing. Most tests also run with plain `python3 -m unittest
+# discover -s tests`, but tests/test_train_loop.py (Stage 4) uses pytest
+# fixtures (tmp_path, capsys) and needs real pytest to run -- use
+# `python3 -m pytest tests/` to run everything.
 pytest>=7.0
 matplotlib>=3.8   # for Stage 2/5 plots

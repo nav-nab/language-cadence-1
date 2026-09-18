@@ -15,7 +15,7 @@ and decisions made while turning that design into code.
 - [x] Stage 1: data pipeline
 - [x] Stage 2: positional encoding module (Π)
 - [x] Stage 3: model
-- [ ] Stage 4: training/eval + sweep harness
+- [x] Stage 4: training/eval + sweep harness (built and verified here; **real sweep not yet run** -- see Stage 4 decisions)
 - [ ] Stage 5: analysis
 
 ## Layout
@@ -42,20 +42,34 @@ src/metronome/
     block.py         pre-norm transformer block (attention + feedforward, each with residual + LN)
     pe_injection.py  switches between additive (x + amplitude*Pi) and concat (Linear(concat(x,Pi)))
     gpt.py           full model: embedding -> Pi injection -> blocks -> final LN -> tied lm_head
+  train/
+    loop.py          Stage 4: run_training() -- trains + evaluates ONE (language, P, seed) run,
+                      given already-loaded window arrays; unit-tested with tiny synthetic data
 scripts/
   build_dataset.py         Stage 1 CLI: raw archives -> processed windows
   pe_distinguishability.py Stage 2: reproduces the distinguishability-vs-P analysis, writes figures/
   pilot_run.py             Stage 3 calibration pilot: one short training run per (injection, amplitude)
                             combination, appends its result to results/pilot_results.jsonl
   pilot_analyze.py         reads results/pilot_results.jsonl, writes the pilot comparison figures
+  train_sweep.py           Stage 4 CLI: runs the real (language, P, seed) grid via train.loop.run_training,
+                            resumable (append-only results file + skip-if-done) -- see Stage 4 decisions.
+                            **This is the script Navid runs on his own Mac for the real sweep.**
 tests/
   test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
   test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
   test_torch_periodic_pe.py Stage 2 unit tests, PyTorch module (incl. cross-check vs NumPy reference)
   test_model.py            Stage 3 unit tests: shapes, real (not just present) causal masking,
                             gradient flow under both injection modes, parameter-count sanity
+  test_train_loop.py       Stage 4 unit tests (pytest, not stdlib unittest -- uses tmp_path/capsys
+                            fixtures): run_training() against tiny synthetic data (well-formed result,
+                            reproducibility given a seed, seeds actually diverge, steps spanning more
+                            than one epoch), plus train_sweep.py's config-fingerprinting and
+                            skip-if-done resumability logic
 results/
   pilot_results.jsonl      one JSON line per pilot_run.py run: config, eval-loss curve, best/final loss
+  sweep_results.jsonl      NOT YET PRESENT -- created by train_sweep.py once the real sweep is run;
+                            one JSON line per (language, P, seed) run: config_id, eval-loss curve,
+                            final_eval_loss_full (the number Stage 5's analysis will read)
 figures/
   pe_distinguishability_vs_P.png    line plot at H=32 (matches design-phase P≈45 finding)
   pe_distinguishability_heatmap.png distinguishability over (H, P), argmax-P vs H compared to P=2H
@@ -69,10 +83,18 @@ Run the pipeline once the raw archives are in place:
 python3 scripts/build_dataset.py
 ```
 
-Run tests any time:
+Run tests any time (pytest picks up all 51 tests; plain `unittest discover`
+works too but silently skips `test_train_loop.py`, which needs pytest's
+`tmp_path`/`capsys` fixtures):
 
 ```
-python3 -m unittest discover -s tests -v
+python3 -m pytest tests/ -v
+```
+
+Run the real Stage 4 sweep (resumable -- safe to interrupt and re-run):
+
+```
+python3 scripts/train_sweep.py
 ```
 
 ## Stage 1 decisions
@@ -205,10 +227,97 @@ documented here, but are easy to revisit if they turn out to matter.
   is active, at the cost of one extra learned projection layer only used
   in concat mode.
 
+## Stage 4 decisions
+
+- **Split between reusable loop and CLI harness (agreed pattern from
+  Stage 3):** `src/metronome/train/loop.py`'s `run_training()` trains
+  and evaluates exactly ONE `(language, P, seed)` run, given
+  already-loaded window arrays -- no file I/O, no results-file
+  bookkeeping -- so it can be unit-tested against tiny synthetic data
+  (`tests/test_train_loop.py`) independently of the real ~18M-character
+  Europarl-derived dataset. `scripts/train_sweep.py` is the thin CLI
+  layer on top: loads real per-language data, iterates the full grid,
+  and manages the results file.
+- **Idiomatic Dataset/DataLoader training loop, not the pilot's
+  sample-with-replacement shortcut:** `pilot_run.py` (Stage 3) drew
+  random batches by index, with replacement, on every step -- fine for
+  a fast rough comparison, but not a real epoch. `run_training()`
+  instead uses `CharWindowDataset` (extended to accept an in-memory
+  array as well as a file path) + `torch.utils.data.DataLoader(shuffle=True)`,
+  so each pass over a language's data is a genuine, freshly-reshuffled
+  epoch. See `loop.py`'s docstring for a specific `itertools.cycle()`
+  pitfall this deliberately avoids when extending training past one
+  epoch.
+- **Eval strategy:** periodic evals during training (every `eval_every`
+  steps) run over a small, fixed-size subset of the test set -- cheap,
+  purely for tracking the loss curve's shape as training progresses.
+  The FINAL eval, after all training steps, runs over the *entire* test
+  set exactly once -- that full-test-set number
+  (`final_eval_loss_full`) is what Stage 5's analysis will actually
+  read, kept clearly distinct in the result dict from the cheaper
+  subset-based curve.
+- **Resumability (agreed): append-only results file + skip-if-done, no
+  mid-run checkpointing.** Same pattern as `pilot_run.py`: each finished
+  run appends one JSON line to `results/sweep_results.jsonl`
+  immediately. Before starting any `(language, P, seed)` combination,
+  the harness checks whether it's already present in that file *and*
+  was run under the same fixed hyperparameters (via a short hash --
+  `_config_id()` -- of everything else: D, n_layers, steps, batch size,
+  etc.), so a later hyperparameter change is never silently mistaken for
+  "already done." This means the whole sweep can be interrupted (Ctrl+C,
+  laptop sleep, closing the terminal) at any point and continued by
+  simply re-running the same command.
+- **P grid (agreed): 14 values -- 3, 4, 6, 8, 16, 24, 32, 45, 64, 96,
+  128, 192, 256, 384.** A few very small periods (down to P=3) plus a
+  spread above and below the Stage 2 geometric-distinguishability peak
+  (P=45), up to and including P=384=`max_seq_len` exactly -- the "Pi's
+  period equals the whole context window" point that makes periodicity
+  structurally unobservable within a single window, directly testing the
+  design notes' "Ceiling Confound" question.
+- **Seeds and step budget -- ASSUMPTION, not confirmed with Navid** (he
+  asked me to pick a reasonable value and explain it, rather than
+  confirm it up front): **1 seed per `(language, P)`, 3000 steps,
+  batch_size=16.** The originally-discussed 2 seeds / 6000 steps turned
+  out not to be reasonable once actually benchmarked: one training step
+  at the sweep's real architecture (D=64, 4 layers, seq_len=384 -- NOT
+  the pilot's shrunk-down seq_len=128/2-layer config) measured ~1.2
+  seconds/step on this sandboxed environment's 4 CPU cores, which would
+  put the full 14 P values x 5 languages x 2 seeds x 6000 steps grid at
+  280+ hours of continuous compute -- not "a few sittings" by any
+  reading. 3000 steps x batch_size=16 = 48,000 windows of 384 characters
+  seen per run = ~18.4M characters -- almost exactly ONE PASS over a
+  language's ~17-18M-character training set (see
+  `data/processed/manifest.json`), a clean way to justify the number,
+  and roughly 60 minutes/run at the benchmarked rate (likely faster on
+  Navid's actual Mac). 1 seed keeps the full grid at
+  14 x 5 x 1 = 70 runs (~70 hours at this environment's rate). Because
+  results are append-only and skip-if-done keys on seed too, this is
+  not a one-way door: running `train_sweep.py --seeds 0,1` later adds a
+  second seed for noise-checking without redoing anything already done.
+  **Navid: if you'd rather use a different step/seed budget once you've
+  seen the real per-step speed on your Mac (`--dry-run` plus a short
+  `--steps N` trial run will tell you quickly), everything past this
+  point is easy to change before committing to the full grid.**
+- **Verified in this environment, not run for real here:** per the
+  compute-constraint discussion before this stage, this sandboxed
+  environment cannot practically run the real sweep (~70+ hours, no
+  persistent background execution across tool calls, ~170s per call).
+  What WAS verified here: all 9 new unit tests pass
+  (`tests/test_train_loop.py`); a real, tiny end-to-end run against
+  actual English Stage 1 data (15 steps, real architecture) produced a
+  sensible decreasing loss curve; and the CLI harness itself
+  (`train_sweep.py`) was run twice against a tiny 2-run grid with real
+  data -- confirming the second run correctly skipped both (already
+  done) and that changing a hyperparameter (`--steps`) correctly
+  produced a different `config_id` and was NOT skipped. **The real
+  sweep -- the full 70-run grid -- has not been run; that's the next
+  step, on Navid's own Mac.**
+
 ## Testing
 
-42 unit tests total (`python3 -m unittest discover -s tests -v`), all
-passing as of Stage 3:
+51 unit tests total (`python3 -m pytest tests/ -v` -- see the note above
+on why pytest, not plain `unittest`, is needed for full coverage), all
+passing as of Stage 4:
 
 - **`test_preprocess.py`** (Stage 1): chapter-boundary parsing (incl. the
   no-`<CHAPTER>`-tags path, which prints a note rather than a warning --
@@ -236,6 +345,17 @@ passing as of Stage 3:
   sanity range; and that both `P` and `pe_amplitude` actually change the
   model's output (i.e. they're genuinely wired through, not silently
   ignored).
+- **`test_train_loop.py`** (Stage 4): `run_training()` against tiny
+  synthetic (random-token) windows -- a well-formed result dict with all
+  the fields the sweep harness/Stage 5 analysis depend on; exact
+  reproducibility given the same seed (weight init AND data shuffling
+  order both derive from it); that different seeds actually diverge
+  (i.e. `seed` is wired through to something that matters); and correct
+  behaviour when the step budget spans more than one epoch. Plus
+  `train_sweep.py`'s bookkeeping: `_config_id()` is stable/order-independent
+  and changes when a hyperparameter changes, and `_load_existing_keys()` /
+  the dry-run skip logic correctly identify already-done vs remaining
+  runs.
 
 Beyond unit tests, several things were checked against real (not
 synthetic) data, not just automated fixtures:

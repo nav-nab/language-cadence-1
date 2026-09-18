@@ -27,9 +27,10 @@ from torch.utils.data import Dataset
 
 class CharWindowDataset(Dataset):
     """
-    Wraps one .npy file of shape (num_windows, window_length + 1) --
-    produced by preprocess.documents_to_windows -- as a PyTorch Dataset
-    of (input, target) pairs for next-character prediction.
+    Wraps an array of shape (num_windows, window_length + 1) -- produced
+    by preprocess.documents_to_windows and saved by build_dataset.py --
+    as a PyTorch Dataset of (input, target) pairs for next-character
+    prediction.
 
     Each row of the underlying array is a window of window_length + 1
     character ids. We split it as:
@@ -45,12 +46,25 @@ class CharWindowDataset(Dataset):
     the current one.
     """
 
-    def __init__(self, npy_path: str | Path):
-        self.npy_path = Path(npy_path)
-        # mmap_mode="r" avoids loading the whole array into RAM up front --
-        # useful once these files get large; numpy pages data in from disk
-        # as it's indexed, which suits random-access Dataset reads well.
-        self.windows: np.ndarray = np.load(self.npy_path, mmap_mode="r")
+    def __init__(self, source: "str | Path | np.ndarray"):
+        # Stage 4 addition: accept either a path to a .npy file (the
+        # original Stage 1/3 usage -- e.g. a full language's window
+        # file on disk) OR an already-in-memory array directly. The
+        # array form is what tests/test_train_loop.py uses to exercise
+        # the training loop against tiny synthetic windows without
+        # needing any real Europarl-derived files on disk; the Stage 4
+        # sweep harness (scripts/train_sweep.py) uses the path form,
+        # same as before.
+        if isinstance(source, np.ndarray):
+            self.npy_path = None
+            self.windows: np.ndarray = source
+        else:
+            self.npy_path = Path(source)
+            # mmap_mode="r" avoids loading the whole array into RAM up
+            # front -- useful once these files get large; numpy pages
+            # data in from disk as it's indexed, which suits
+            # random-access Dataset reads well.
+            self.windows = np.load(self.npy_path, mmap_mode="r")
         assert self.windows.ndim == 2, f"expected 2D array, got shape {self.windows.shape}"
 
     def __len__(self) -> int:
