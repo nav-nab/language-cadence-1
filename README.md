@@ -51,13 +51,6 @@ src/metronome/
   pe/
     periodic_pe.py          Pi positional encoding, NumPy reference implementation
     torch_periodic_pe.py    Pi as a PyTorch nn.Module (buffer, not a learned parameter)
-scripts/
-  build_dataset.py         Stage 1 CLI: raw archives -> processed windows
-  pe_distinguishability.py Stage 2: reproduces the distinguishability-vs-P analysis, writes figures/
-tests/
-  test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
-  test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
-  test_torch_periodic_pe.py Stage 2 unit tests, PyTorch module (incl. cross-check vs NumPy reference)
   model/
     config.py       ModelConfig dataclass -- ALL architecture + Pi-injection hyperparameters,
                      including the two Stage 3 open decisions (pe_injection, pe_amplitude)
@@ -66,6 +59,15 @@ tests/
     block.py         pre-norm transformer block (attention + feedforward, each with residual + LN)
     pe_injection.py  switches between additive (x + amplitude*Pi) and concat (Linear(concat(x,Pi)))
     gpt.py           full model: embedding -> Pi injection -> blocks -> final LN -> tied lm_head
+scripts/
+  build_dataset.py         Stage 1 CLI: raw archives -> processed windows
+  pe_distinguishability.py Stage 2: reproduces the distinguishability-vs-P analysis, writes figures/
+tests/
+  test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
+  test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
+  test_torch_periodic_pe.py Stage 2 unit tests, PyTorch module (incl. cross-check vs NumPy reference)
+  test_model.py            Stage 3 unit tests: shapes, real (not just present) causal masking,
+                            gradient flow under both injection modes, parameter-count sanity
 figures/
   pe_distinguishability_vs_P.png    line plot at H=32 (matches design-phase P≈45 finding)
   pe_distinguishability_heatmap.png distinguishability over (H, P), argmax-P vs H compared to P=2H
@@ -135,6 +137,30 @@ documented here, but are easy to revisit if they turn out to matter.
   language (`--test-frac 0.1`), fixed seed for reproducibility. Easy to
   change via CLI flag.
 
+## Stage 2 decisions
+
+- **Distinguishability metric:** mean L2 distance between neighbouring
+  position columns of Pi, averaged over one full period (including the
+  wrap-around pair, since Pi is exactly periodic). A direct, easy-to-
+  interpret "how much does moving one position actually change the
+  encoding" measure -- not the only reasonable choice, but the one
+  matching the informal description of the original design-phase
+  analysis this stage was reproducing.
+- **Verified, not just re-derived:** the reproduction independently
+  confirmed the design-phase finding (P=45 at H=32) exactly, and
+  additionally swept H itself (not just P), which showed the
+  distinguishability-maximising P scales roughly linearly with H across
+  the whole range tested, but consistently runs below the naive P=2H
+  line -- closer to ~1.4H. Documented here since it refines (mildly
+  contradicts the precise multiplier of) the "peak near P≈2H" framing in
+  the original design notes, though the qualitative story (bigger H
+  wants bigger P) holds.
+- **This is encoding geometry only, not trained-model behaviour** -- a
+  hypothesis for where empirical P* might land in Stage 4/5, not a
+  prediction guaranteed to hold. Flagged explicitly because the project
+  write-up notes call out this exact distinction as something to keep
+  separate, not blur together.
+
 ## Stage 3 decisions
 
 - **Pi injection method and amplitude are config, not hardcoded** (per
@@ -164,15 +190,51 @@ documented here, but are easy to revisit if they turn out to matter.
 
 ## Testing
 
-`tests/test_preprocess.py` covers: chapter-boundary parsing (incl. the
-no-`<CHAPTER>`-tags fallback and its warning), NFC normalisation
-(including that combining-character sequences collapse to the same id as
-their precomposed form), lowercasing, vocab building (rare-char -> UNK
-folding, shared-across-languages behaviour), document-level split
-(no document in both splits, reproducible given a seed), and windowing
-(correct shape, and that windows never cross a document boundary).
+42 unit tests total (`python3 -m unittest discover -s tests -v`), all
+passing as of Stage 3:
 
-The full pipeline was additionally smoke-tested end-to-end against a
+- **`test_preprocess.py`** (Stage 1): chapter-boundary parsing (incl. the
+  no-`<CHAPTER>`-tags path, which prints a note rather than a warning --
+  it's the expected case for the real Europarl release, not an anomaly),
+  NFC normalisation (including that combining-character sequences
+  collapse to the same id as their precomposed form), lowercasing, vocab
+  building (rare-char -> UNK folding, shared-across-languages behaviour),
+  document-level split (no document in both splits, reproducible given a
+  seed), and windowing (correct shape, windows never cross a document
+  boundary).
+- **`test_periodic_pe.py`** (Stage 2, NumPy): the folded-harmonic
+  formula against a worked example, the exact `Pi(n) == Pi(n+P)` property,
+  that P is the *fundamental* period (not just *a* period), and output
+  shape/bounds.
+- **`test_torch_periodic_pe.py`** (Stage 2, PyTorch): numerical agreement
+  with the NumPy reference (to float32 precision), the same exact-period
+  property in torch, correct broadcasting onto batched activations, and
+  that Pi is registered as a non-trainable buffer, not a Parameter.
+- **`test_model.py`** (Stage 3): output shapes under both injection
+  modes; that causal masking is real (changing only the *last* token in
+  a sequence leaves every earlier position's logits byte-for-byte
+  identical -- verified numerically, not just "a mask was passed");
+  gradient flow through every parameter under both injection modes; that
+  weight tying shares one tensor, not two equal ones; a parameter-count
+  sanity range; and that both `P` and `pe_amplitude` actually change the
+  model's output (i.e. they're genuinely wired through, not silently
+  ignored).
+
+Beyond unit tests, two things were checked against real (not synthetic)
+data, not just automated: `scripts/build_dataset.py` run against the
+actual downloaded Europarl archives (see `data/processed/manifest.json`
+for the real per-language counts), and an ad hoc end-to-end script
+(loaded a real `en` window batch via `CharWindowDataset`, trained a real
+`GPT` on it repeatedly with plain Adam, no weight decay) confirming loss
+drops from the random-guessing baseline (~ln(vocab_size) = 4.16) to
+~0.01 -- i.e. the full data -> model -> loss -> backward -> step chain
+is correctly wired, not just that shapes line up. That script wasn't
+saved as a committed file (it was a one-off sanity check, not a
+reusable tool) -- worth turning into a proper `scripts/` entry if it'd
+be useful to re-run later, e.g. after future changes to the data
+pipeline or model code.
+
+The Stage 1 pipeline was additionally smoke-tested end-to-end against a
 small synthetic multi-language corpus (fake `<CHAPTER>`-tagged text) to
 confirm `build_dataset.py` runs cleanly from raw archive to saved
 `.npy` files -- that test data was generated, checked, and deleted, not
