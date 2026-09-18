@@ -148,14 +148,31 @@ documented here, but are easy to revisit if they turn out to matter.
 
 - **Pi injection method and amplitude are config, not hardcoded** (per
   the project notes' explicit requirement): `ModelConfig.pe_injection`
-  ("additive" or "concat") and `ModelConfig.pe_amplitude`. Neither has
-  been experimentally chosen yet -- current defaults (`"additive"`,
-  amplitude `1.0`) are placeholders for getting the model running end to
-  end, not a considered decision. Per the project notes, whichever
-  combination is used must be held fixed across the whole P-sweep in
-  Stage 4 to avoid confounding amplitude/injection-method with
-  periodicity -- worth a explicit decision (and check-in) before Stage 4
-  locks one in for the real sweep.
+  ("additive" or "concat") and `ModelConfig.pe_amplitude`. **Settled**
+  via a calibration pilot (`scripts/pilot_run.py` /
+  `scripts/pilot_analyze.py`, results in `results/pilot_results.jsonl`,
+  figures in `figures/pilot_*.png`): 7 short training runs (English only,
+  P=45 fixed, seq_len=128, D=64, 2 layers, 2000 steps, one seed held
+  constant across runs) comparing additive at amplitude in
+  {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Chosen defaults:
+  **`pe_injection="additive"`, `pe_amplitude=0.1`** -- reached the lowest
+  eval loss of everything tried, narrowly ahead of concat (second place).
+  Two things worth carrying into the write-up (also noted in project
+  memory): (1) amplitude has a *bounded* meaningful range in this
+  architecture -- amplitude=2.0 and amplitude=4.0 produced numerically
+  matching results, because every transformer block's leading LayerNorm
+  is scale-invariant (`LayerNorm(c*v) == LayerNorm(v)`), so past a
+  certain point the token embedding becomes negligible next to
+  amplitude*Pi and further scaling is invisible; (2) some positional
+  signal clearly helps (amplitude=0.1 beat amplitude=0.0, i.e. no
+  positional signal at all), but too much hurts monotonically past a
+  fairly small optimum -- consistent with large amplitude drowning out
+  token-identity information relative to position. This pilot is
+  explicitly low-fidelity (one seed, one language, short context/run) --
+  good enough to fix reasonable Stage 4 defaults, not a substitute for
+  what Stage 4/5 will actually show; per the project notes, whichever
+  combination is used must stay fixed across the whole P-sweep to avoid
+  confounding amplitude/injection-method with periodicity.
 - **Pre-norm transformer blocks** (LayerNorm before each sub-layer, not
   after) -- the modern standard over the original Transformer paper's
   post-norm, chosen for training stability at negligible cost/complexity;

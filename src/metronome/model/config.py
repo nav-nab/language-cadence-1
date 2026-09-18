@@ -41,13 +41,25 @@ class ModelConfig:
 
     # --- Positional encoding (Pi) ---
     P: int = 45           # the period being tested -- THIS is what the Stage 4 sweep varies
+    # Settled via a calibration pilot (see README's "Stage 3 decisions"
+    # section and the project write-up notes for the full comparison and
+    # the reasoning): additive injection with amplitude=0.1 reached the
+    # lowest eval loss of everything tried (7 short runs: additive at
+    # amplitude 0.0/0.1/0.25/0.5/1.0/2.0/4.0, plus concat), narrowly
+    # beating concat. This is a low-fidelity pilot result (one seed, one
+    # language, short context/run), not a rigorous hyperparameter search
+    # -- reasonable enough to fix for Stage 4, but worth re-checking if
+    # Stage 4/5 results look off in a way amplitude could explain.
     pe_injection: PEInjectionMethod = "additive"
     # Only used when pe_injection == "additive": x = token_emb + pe_amplitude * Pi.
-    # Flagged as an open decision in the project notes -- must be fixed and held
-    # constant across the whole P-sweep once chosen, to avoid confounding
-    # amplitude with periodicity. Default of 1.0 is a placeholder, not a
-    # considered choice -- see README's "Stage 3 decisions" section.
-    pe_amplitude: float = 1.0
+    # Must stay fixed across the whole P-sweep once chosen, to avoid
+    # confounding amplitude with periodicity -- see the pilot finding
+    # above for why: past a certain amplitude, every transformer block's
+    # leading LayerNorm makes further increases invisible anyway (it's
+    # scale-invariant), so amplitude only matters in the small-to-moderate
+    # range where it's actually competing with the token embedding's own
+    # magnitude.
+    pe_amplitude: float = 0.1
 
     def __post_init__(self):
         if self.D % 2 != 0:
