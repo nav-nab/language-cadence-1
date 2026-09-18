@@ -14,7 +14,7 @@ and decisions made while turning that design into code.
 
 - [x] Stage 1: data pipeline
 - [x] Stage 2: positional encoding module (Π)
-- [ ] Stage 3: model
+- [x] Stage 3: model
 - [ ] Stage 4: training/eval + sweep harness
 - [ ] Stage 5: analysis
 
@@ -58,6 +58,14 @@ tests/
   test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
   test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
   test_torch_periodic_pe.py Stage 2 unit tests, PyTorch module (incl. cross-check vs NumPy reference)
+  model/
+    config.py       ModelConfig dataclass -- ALL architecture + Pi-injection hyperparameters,
+                     including the two Stage 3 open decisions (pe_injection, pe_amplitude)
+    attention.py     causal multi-head self-attention
+    mlp.py           feedforward sub-layer
+    block.py         pre-norm transformer block (attention + feedforward, each with residual + LN)
+    pe_injection.py  switches between additive (x + amplitude*Pi) and concat (Linear(concat(x,Pi)))
+    gpt.py           full model: embedding -> Pi injection -> blocks -> final LN -> tied lm_head
 figures/
   pe_distinguishability_vs_P.png    line plot at H=32 (matches design-phase P≈45 finding)
   pe_distinguishability_heatmap.png distinguishability over (H, P), argmax-P vs H compared to P=2H
@@ -126,6 +134,33 @@ documented here, but are easy to revisit if they turn out to matter.
 - **Train/test split fraction:** default 10% of documents held out per
   language (`--test-frac 0.1`), fixed seed for reproducibility. Easy to
   change via CLI flag.
+
+## Stage 3 decisions
+
+- **Pi injection method and amplitude are config, not hardcoded** (per
+  the project notes' explicit requirement): `ModelConfig.pe_injection`
+  ("additive" or "concat") and `ModelConfig.pe_amplitude`. Neither has
+  been experimentally chosen yet -- current defaults (`"additive"`,
+  amplitude `1.0`) are placeholders for getting the model running end to
+  end, not a considered decision. Per the project notes, whichever
+  combination is used must be held fixed across the whole P-sweep in
+  Stage 4 to avoid confounding amplitude/injection-method with
+  periodicity -- worth a explicit decision (and check-in) before Stage 4
+  locks one in for the real sweep.
+- **Pre-norm transformer blocks** (LayerNorm before each sub-layer, not
+  after) -- the modern standard over the original Transformer paper's
+  post-norm, chosen for training stability at negligible cost/complexity;
+  not something the project notes discuss, so not flagged as an open
+  decision requiring sign-off.
+- **Weight tying** between the token embedding and the output (`lm_head`)
+  projection -- standard GPT convention, reduces parameter count with
+  usually-neutral-to-positive effect on quality.
+- **Concat injection projects 2*D -> D via one linear layer** after
+  concatenating token embeddings and Pi (rather than, say, reducing the
+  token embedding's own dimension to leave room for Pi) -- keeps Pi's own
+  D/H exactly as specified in Stage 2 regardless of which injection mode
+  is active, at the cost of one extra learned projection layer only used
+  in concat mode.
 
 ## Testing
 
