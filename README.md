@@ -18,23 +18,6 @@ and decisions made while turning that design into code.
 - [ ] Stage 4: training/eval + sweep harness
 - [ ] Stage 5: analysis
 
-## Environment notes
-
-- **Europarl data:** downloaded and in `data/raw/` (done).
-- **PyTorch:** installed (`torch 2.14.0+cpu`, CPU-only build) in the
-  sandboxed Linux VM Claude uses to run commands against this folder,
-  via `pip install --user --index-url https://download.pytorch.org/whl/cpu
-  torch`. This required adding `pypi.org`, `files.pythonhosted.org`,
-  `download.pytorch.org`, and `download-r2.pytorch.org` to this
-  environment's network allowlist -- by default that sandbox can't reach
-  the internet at all. Verified working: forward pass, backward pass /
-  autograd, and `torch_dataset.py`'s `CharWindowDataset` all run
-  correctly. Note this is a *separate* Python environment from the one
-  VS Code uses on your actual machine (which has its own working PyTorch
-  install via Anaconda, `/opt/anaconda3/bin/python`) -- the sandbox VM's
-  install is what lets Claude run and test PyTorch code directly, not a
-  replacement for your own environment.
-
 ## Layout
 
 ```
