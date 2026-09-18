@@ -45,15 +45,22 @@ src/metronome/
 scripts/
   build_dataset.py         Stage 1 CLI: raw archives -> processed windows
   pe_distinguishability.py Stage 2: reproduces the distinguishability-vs-P analysis, writes figures/
+  pilot_run.py             Stage 3 calibration pilot: one short training run per (injection, amplitude)
+                            combination, appends its result to results/pilot_results.jsonl
+  pilot_analyze.py         reads results/pilot_results.jsonl, writes the pilot comparison figures
 tests/
   test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
   test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
   test_torch_periodic_pe.py Stage 2 unit tests, PyTorch module (incl. cross-check vs NumPy reference)
   test_model.py            Stage 3 unit tests: shapes, real (not just present) causal masking,
                             gradient flow under both injection modes, parameter-count sanity
+results/
+  pilot_results.jsonl      one JSON line per pilot_run.py run: config, eval-loss curve, best/final loss
 figures/
   pe_distinguishability_vs_P.png    line plot at H=32 (matches design-phase P≈45 finding)
   pe_distinguishability_heatmap.png distinguishability over (H, P), argmax-P vs H compared to P=2H
+  pilot_eval_loss_curves.png        eval loss vs step, one line per pilot (injection, amplitude) combo
+  pilot_final_comparison.png        ranked bar chart of best eval loss per combo
 ```
 
 Run the pipeline once the raw archives are in place:
@@ -89,18 +96,26 @@ documented here, but are easy to revisit if they turn out to matter.
 - **Window length / overlap / data volume (agreed):** N=384 (within the
   256-512 guide band from the notes), non-overlapping windows (avoids
   near-duplicate training examples from overlapping slices), targeting
-  roughly 10M characters/language. Note the actual character count
-  depends on what's in the real Europarl archives once downloaded --
-  the manifest.json written by build_dataset.py reports the true count
-  per language per run so this can be checked/adjusted.
-- **Document granularity:** one Europarl `<CHAPTER>` (one parliamentary
-  debate/session) = one document, for the purposes of the document-level
-  train/test split. This is the natural document unit Europarl's raw
-  release provides. If a raw file unexpectedly has no `<CHAPTER>` tags,
-  the code falls back to fixed-size pseudo-documents and prints a loud
-  warning -- worth double-checking against that warning once real files
-  are downloaded, in case the release format differs from what's
-  assumed here.
+  roughly 10M characters/language. Actual achieved volume, per
+  `data/processed/manifest.json` from the real downloaded archives:
+  ~17.6-18.0M train characters and ~1.8-2.0M test characters per
+  language (comfortably past the 10M target), ~208-239 train documents
+  and ~23-26 test documents per language, and 45.6K-46.7K train windows
+  / 4.8K-5.1K test windows per language -- consistent across all five
+  languages, as intended by extracting a fixed raw-byte budget per
+  language rather than a fixed document count.
+- **Document granularity:** the real Europarl v7 release turned out to
+  have NO document/chapter markup at all (confirmed directly against the
+  downloaded archives -- an earlier assumption about `<CHAPTER>` tags was
+  wrong, see `extract_europarl.py`'s module docstring for the full
+  story). So "documents", for the purposes of the document-level
+  train/test split, are fixed-size chunks of 500 consecutive sentences
+  each, in original order -- not real debate/session boundaries, but
+  still enough to keep topically/stylistically correlated sentences on
+  one side of the split rather than scattered randomly across it. The
+  code still recognises real `<CHAPTER>` tags as document boundaries if
+  a file happens to have them (e.g. a differently-formatted release),
+  but that's the exception path now, not the expected one.
 - **English source file:** Europarl v7 ships as language-PAIR archives,
   always paired with English (`de-en.tgz`, `fr-en.tgz`, etc.), so there
   are 4 candidate English text files. Rather than merge/dedupe across
@@ -222,19 +237,22 @@ passing as of Stage 3:
   model's output (i.e. they're genuinely wired through, not silently
   ignored).
 
-Beyond unit tests, two things were checked against real (not synthetic)
-data, not just automated: `scripts/build_dataset.py` run against the
-actual downloaded Europarl archives (see `data/processed/manifest.json`
-for the real per-language counts), and an ad hoc end-to-end script
-(loaded a real `en` window batch via `CharWindowDataset`, trained a real
-`GPT` on it repeatedly with plain Adam, no weight decay) confirming loss
-drops from the random-guessing baseline (~ln(vocab_size) = 4.16) to
-~0.01 -- i.e. the full data -> model -> loss -> backward -> step chain
-is correctly wired, not just that shapes line up. That script wasn't
-saved as a committed file (it was a one-off sanity check, not a
-reusable tool) -- worth turning into a proper `scripts/` entry if it'd
-be useful to re-run later, e.g. after future changes to the data
-pipeline or model code.
+Beyond unit tests, several things were checked against real (not
+synthetic) data, not just automated fixtures:
+`scripts/build_dataset.py` run against the actual downloaded Europarl
+archives (see `data/processed/manifest.json` for the real per-language
+counts, summarised in the Stage 1 decisions section above); an ad hoc,
+uncommitted overfit-a-single-batch script (loaded a real `en` window
+batch via `CharWindowDataset`, trained a real `GPT` on it repeatedly
+with plain Adam, no weight decay) confirming loss drops from the
+random-guessing baseline (~ln(vocab_size) = 4.16) to ~0.01 -- i.e. the
+full data -> model -> loss -> backward -> step chain is correctly
+wired, not just that shapes line up; and `scripts/pilot_run.py`, which
+is effectively a proper, committed, more thorough successor to that ad
+hoc check -- real held-out train/eval loss curves (not just overfitting
+one batch) across 7 different model configurations, all on real English
+data (see "Stage 3 decisions" above and `results/pilot_results.jsonl`
+for the results).
 
 The Stage 1 pipeline was additionally smoke-tested end-to-end against a
 small synthetic multi-language corpus (fake `<CHAPTER>`-tagged text) to
