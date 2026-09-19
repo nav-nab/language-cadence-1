@@ -106,6 +106,17 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+# Python buffers stdout in large blocks (rather than flushing per line)
+# whenever it's not talking directly to a terminal -- which is exactly
+# what happens the moment you pipe this script's output somewhere, e.g.
+# `python3 train_sweep.py | tee log.txt`. Without this, output can sit
+# invisibly in a buffer for a long time (sometimes not appearing at all
+# until the process exits) even though every `print()` call below
+# passes flush=True -- reconfigure() changes stdout's buffering mode
+# itself, which is the actual fix; flush=True on individual prints is
+# kept too, as a harmless belt-and-braces backup.
+sys.stdout.reconfigure(line_buffering=True)
+
 from metronome.model.config import ModelConfig  # noqa: E402
 from metronome.train.loop import run_training  # noqa: E402
 
@@ -183,6 +194,7 @@ def run_sweep(
     results_path: Path,
     dry_run: bool = False,
     hyperparameters: dict | None = None,
+    log_every: int = 100,
 ) -> None:
     # `hyperparameters` defaults to the agreed FIXED_HYPERPARAMETERS, but
     # can be overridden (via the --steps/--batch-size/etc CLI flags below)
@@ -215,12 +227,13 @@ def run_sweep(
 
     print(
         f"config_id={config_id}  plan={len(plan)} runs total, "
-        f"{len(plan) - len(todo)} already done, {len(todo)} remaining."
+        f"{len(plan) - len(todo)} already done, {len(todo)} remaining.",
+        flush=True,
     )
     if dry_run:
-        print("--dry-run: not training anything. Remaining runs:")
+        print("--dry-run: not training anything. Remaining runs:", flush=True)
         for language, P, seed in todo:
-            print(f"  language={language} P={P} seed={seed}")
+            print(f"  language={language} P={P} seed={seed}", flush=True)
         return
 
     vocab = json.load(open(REPO_ROOT / "data" / "processed" / "vocab.json"))
@@ -259,7 +272,8 @@ def run_sweep(
         )
 
         run_label = f"[{i}/{len(todo)}] language={language} P={P} seed={seed}"
-        print(f"{run_label}  starting...")
+        started_at = time.strftime("%H:%M:%S")
+        print(f"{run_label}  starting at {started_at}...", flush=True)
         run_t0 = time.time()
 
         result = run_training(
@@ -274,7 +288,13 @@ def run_sweep(
             eval_every=hp["eval_every"],
             eval_subset_batches=hp["eval_subset_batches"],
             log_prefix=f"{run_label}  ",
-            log_every=0,  # keep the harness's own per-run line as the only output; set >0 for verbose per-step logging
+            # log_every=100 by default (overridable via --log-every):
+            # prints a progress line roughly every couple of minutes at
+            # this environment's benchmarked rate -- enough to confirm
+            # the run is genuinely progressing (and roughly how far
+            # through) without flooding the log. Pass --log-every 0 for
+            # the old fully-quiet behaviour.
+            log_every=log_every,
         )
         result["language"] = language
         result["config_id"] = config_id
@@ -294,7 +314,9 @@ def run_sweep(
         print(
             f"{run_label}  DONE in {run_elapsed:.0f}s  "
             f"final_eval_loss_full={result['final_eval_loss_full']:.4f}  "
-            f"({remaining} runs left, ETA ~{eta_hours:.1f}h at current pace)"
+            f"({remaining} runs left, ETA ~{eta_hours:.1f}h at current pace, "
+            f"i.e. around {time.strftime('%a %H:%M', time.localtime(time.time() + eta_hours * 3600))})",
+            flush=True,
         )
 
 
@@ -320,6 +342,12 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=None, help="override: batch size")
     parser.add_argument("--eval-every", type=int, default=None, help="override: steps between subset evals")
     parser.add_argument("--eval-subset-batches", type=int, default=None, help="override: batches per subset eval")
+    # Verbosity only -- deliberately NOT one of the --steps/--batch-size/
+    # etc overrides above, and NOT part of FIXED_HYPERPARAMETERS/config_id:
+    # changing how much gets printed must never make skip-if-done treat a
+    # run as "different" from an identical run logged less verbosely.
+    parser.add_argument("--log-every", type=int, default=100,
+                         help="print an in-run progress line every N steps (0 = quiet, only start/end lines)")
     args = parser.parse_args()
 
     overrides = {}
@@ -339,6 +367,7 @@ def main() -> None:
         results_path=args.results,
         dry_run=args.dry_run,
         hyperparameters=overrides or None,
+        log_every=args.log_every,
     )
 
 

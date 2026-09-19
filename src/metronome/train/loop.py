@@ -233,13 +233,32 @@ def run_training(
         train_loss_running = loss.item()
 
         if log_every and step % log_every == 0:
-            print(f"{log_prefix}step {step}/{steps}  train_loss={train_loss_running:.4f}")
+            # elapsed/rate/ETA are computed fresh from THIS run's own
+            # step 1..step timing (not the sweep-level ETA that
+            # train_sweep.py prints between runs) -- this is the number
+            # that answers "is THIS run about to finish soon", which
+            # matters most while you're staring at a silent terminal.
+            elapsed = time.time() - t0
+            steps_per_sec = step / elapsed if elapsed > 0 else 0.0
+            remaining_steps = steps - step
+            run_eta_min = (remaining_steps / steps_per_sec / 60.0) if steps_per_sec > 0 else float("nan")
+            print(
+                f"{log_prefix}step {step}/{steps} ({100.0 * step / steps:.0f}%)  "
+                f"train_loss={train_loss_running:.4f}  "
+                f"elapsed={elapsed:.0f}s  {steps_per_sec:.2f} steps/s  "
+                f"this-run ETA ~{run_eta_min:.1f} min",
+                flush=True,  # flush=True: print output is meant to be watched live (e.g. via
+                             # `tail -f` on a piped log file), not just seen once the run ends --
+                             # without this, Python may buffer many lines before they actually
+                             # appear, especially when stdout isn't a real terminal (piped to
+                             # `tee`, redirected to a file, etc).
+            )
 
         if step % eval_every == 0 or step == steps:
             eval_loss = _evaluate(model, eval_subset_loader, vocab_size, max_batches=eval_subset_batches)
             eval_points.append({"step": step, "train_loss": train_loss_running, "eval_loss_subset": eval_loss})
             if log_every:
-                print(f"{log_prefix}step {step}/{steps}  eval_loss_subset={eval_loss:.4f}")
+                print(f"{log_prefix}step {step}/{steps}  eval_loss_subset={eval_loss:.4f}", flush=True)
 
     # Final, full-test-set evaluation -- the number that actually goes
     # into the P-vs-loss analysis. Kept separate from the eval_points
