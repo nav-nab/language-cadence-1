@@ -57,6 +57,10 @@ scripts/
   analyze_sweep.py         Stage 5: reads results/sweep_results.jsonl, classifies each language's
                             test-loss-vs-P curve (interior minimum vs monotonic/boundary), writes
                             results/sweep_summary.json and figures/sweep_test_loss_vs_P.png
+  plot_distinguishability_vs_loss.py  Stage 5 follow-up: puts Stage 2's Pi-distinguishability curve
+                            and Stage 5's test-loss curve on one dual-axis figure over the same P grid --
+                            see Stage 5 decisions for what it shows (they're POSITIVELY correlated,
+                            the opposite of what "distinguishability drives performance" predicts)
 tests/
   test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
   test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
@@ -71,6 +75,9 @@ tests/
   test_analyze_sweep.py    Stage 5 unit tests: the interior-minimum-vs-monotonic classification rule
                             (incl. the real sweep's actual shape: monotonic decreasing to the boundary),
                             local-minima detection, and multi-seed averaging in load_sweep_by_language()
+  test_plot_distinguishability_vs_loss.py  Stage 5 follow-up tests: cross-language loss averaging,
+                            and a golden-value cross-check on the imported distinguishability() values
+                            at P=45/P=384 so this figure can't silently drift from Stage 2's real metric
 results/
   pilot_results.jsonl      one JSON line per pilot_run.py run: config, eval-loss curve, best/final loss
   sweep_results.jsonl      the real Stage 4 sweep, 70 lines (14 P values x 5 languages x 1 seed): one
@@ -84,6 +91,8 @@ figures/
   pilot_final_comparison.png        ranked bar chart of best eval loss per combo
   sweep_test_loss_vs_P.png          Stage 5 headline figure: test loss vs P (log-x), one line per
                                      language, smoothed overlay, Stage 2's P=45 marked for reference
+  distinguishability_vs_loss.png    Stage 5 follow-up: Pi distinguishability (Stage 2) and mean test
+                                     loss (Stage 5) on one dual-axis figure, same P grid -- see below
 ```
 
 Run the pipeline once the raw archives are in place:
@@ -375,9 +384,29 @@ context, or restricting the P grid to well under N and checking whether
 an interior optimum appears once the boundary effect is no longer
 directly reachable). That's a design decision for a possible Stage 6,
 not implemented here.
+
+**Follow-up figure (prompted by Navid's own observation while reviewing
+the results):** Pi was deliberately designed (Stage 2) so that an
+overly long P makes neighbouring positions harder to distinguish --
+distinguishability peaks at P=45 then falls sharply for larger P. If
+that geometric property mattered for trained performance, distinguishability
+and test loss should move in OPPOSITE directions (more distinguishable
+-> lower loss). `scripts/plot_distinguishability_vs_loss.py` puts both
+curves on one figure (`figures/distinguishability_vs_loss.png`) to check
+directly. They don't move in opposite directions -- they're **positively
+correlated** (Pearson r = +0.930 across the swept grid): both curves
+fall together as P grows past 45. Concretely, P=384 is the single WORST
+point on the entire grid by the distinguishability metric (1.74, vs the
+P=45 peak of 8.89 -- roughly a 5x drop) and simultaneously the BEST
+point by test loss, for every language. The geometric trade-off Pi was
+explicitly built around -- the reason not to just always pick the
+largest possible P -- had no protective effect in the actual trained
+models; whatever made large P better for prediction, it wasn't
+adjacent-position distinguishability.
+
 ## Testing
 
-58 unit tests total (`python3 -m pytest tests/ -v` -- see the note above
+61 unit tests total (`python3 -m pytest tests/ -v` -- see the note above
 on why pytest, not plain `unittest`, is needed for full coverage), all
 passing as of Stage 5:
 
@@ -425,6 +454,12 @@ passing as of Stage 5:
   minimum), and that `load_sweep_by_language()` correctly averages
   multiple seeds per `(language, P)` while passing single-seed data
   through unchanged.
+- **`test_plot_distinguishability_vs_loss.py`** (Stage 5 follow-up):
+  cross-language mean-loss averaging, and a golden-value check that the
+  imported `distinguishability()` still matches the real values this
+  figure was built from at P=45/P=384 -- so a future change to Stage 2's
+  metric (or an accidental reimplementation drifting from it) would be
+  caught here rather than silently changing the figure's story.
 
 Beyond unit tests, several things were checked against real (not
 synthetic) data, not just automated fixtures:
