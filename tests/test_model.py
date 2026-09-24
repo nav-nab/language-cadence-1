@@ -1,5 +1,5 @@
 """
-Unit tests for the Stage 3 GPT model (src/metronome/model/).
+Unit tests for the Stage 3 GPT model (src/language_cadence/model/).
 Requires torch -- see README.md for environment notes.
 
 Run with:
@@ -17,8 +17,8 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from metronome.model.config import ModelConfig  # noqa: E402
-from metronome.model.gpt import GPT  # noqa: E402
+from language_cadence.model.config import ModelConfig  # noqa: E402
+from language_cadence.model.gpt import GPT  # noqa: E402
 
 
 def tiny_config(**overrides) -> ModelConfig:

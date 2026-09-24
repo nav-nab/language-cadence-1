@@ -1,5 +1,5 @@
 """
-Unit tests for the NumPy reference Π implementation (src/metronome/pe/periodic_pe.py).
+Unit tests for the NumPy reference Π implementation (src/language_cadence/pe/periodic_pe.py).
 
 Run with:
     python3 -m unittest discover -s tests -v
@@ -16,7 +16,7 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from metronome.pe.periodic_pe import harmonic_orders, periodic_pe  # noqa: E402
+from language_cadence.pe.periodic_pe import harmonic_orders, periodic_pe  # noqa: E402
 
 
 class TestHarmonicOrders(unittest.TestCase):

@@ -44,8 +44,8 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from metronome.model.config import ModelConfig  # noqa: E402
-from metronome.model.gpt import GPT  # noqa: E402
+from language_cadence.model.config import ModelConfig  # noqa: E402
+from language_cadence.model.gpt import GPT  # noqa: E402
 
 SEQ_LEN = 128
 D = 64

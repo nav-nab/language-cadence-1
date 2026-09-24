@@ -16,8 +16,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from metronome.data.extract_europarl import Document, parse_documents  # noqa: E402
-from metronome.data.preprocess import (  # noqa: E402
+from language_cadence.data.extract_europarl import Document, parse_documents  # noqa: E402
+from language_cadence.data.preprocess import (  # noqa: E402
     UNK_ID,
     build_vocab,
     documents_to_windows,

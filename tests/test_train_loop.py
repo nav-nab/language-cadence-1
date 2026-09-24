@@ -38,8 +38,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from metronome.model.config import ModelConfig  # noqa: E402
-from metronome.train.loop import run_training  # noqa: E402
+from language_cadence.model.config import ModelConfig  # noqa: E402
+from language_cadence.train.loop import run_training  # noqa: E402
 
 import train_sweep  # noqa: E402  (scripts/ is not a package -- imported directly, added to sys.path above)
 

@@ -1,5 +1,5 @@
 """
-Unit tests for the PyTorch Π module (src/metronome/pe/torch_periodic_pe.py).
+Unit tests for the PyTorch Π module (src/language_cadence/pe/torch_periodic_pe.py).
 Requires torch to be installed -- see README.md for environment notes.
 
 Run with:
@@ -18,8 +18,8 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from metronome.pe.periodic_pe import periodic_pe  # noqa: E402
-from metronome.pe.torch_periodic_pe import PeriodicPositionalEncoding  # noqa: E402
+from language_cadence.pe.periodic_pe import periodic_pe  # noqa: E402
+from language_cadence.pe.torch_periodic_pe import PeriodicPositionalEncoding  # noqa: E402
 
 
 class TestTorchPeriodicPE(unittest.TestCase):

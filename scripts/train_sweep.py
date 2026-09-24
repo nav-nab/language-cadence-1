@@ -117,8 +117,8 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 # kept too, as a harmless belt-and-braces backup.
 sys.stdout.reconfigure(line_buffering=True)
 
-from metronome.model.config import ModelConfig  # noqa: E402
-from metronome.train.loop import run_training  # noqa: E402
+from language_cadence.model.config import ModelConfig  # noqa: E402
+from language_cadence.train.loop import run_training  # noqa: E402
 
 DEFAULT_LANGUAGES = ["en", "fr", "de", "it", "es"]
 DEFAULT_P_GRID = [3, 4, 6, 8, 16, 24, 32, 45, 64, 96, 128, 192, 256, 384]

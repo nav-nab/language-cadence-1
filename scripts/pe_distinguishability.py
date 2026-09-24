@@ -53,7 +53,7 @@ matplotlib.use("Agg")  # headless -- no display in this environment
 import matplotlib.pyplot as plt
 import numpy as np
 
-from metronome.pe.periodic_pe import periodic_pe  # noqa: E402
+from language_cadence.pe.periodic_pe import periodic_pe  # noqa: E402
 
 
 def distinguishability(D: int, P: int) -> float:

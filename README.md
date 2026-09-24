@@ -1,4 +1,4 @@
-# metronome
+# language-cadence
 
 Small laptop-scale ML research project testing the "cadence" hypothesis:
 does the period of a *periodic* positional encoding, in an otherwise fixed
@@ -25,7 +25,7 @@ data/
   raw/          Europarl .tgz archives go here (not checked into git -- see raw/README.md)
   processed/    output of scripts/build_dataset.py: vocab.json, manifest.json,
                 and per-language {train,test}_windows.npy
-src/metronome/
+src/language_cadence/
   data/
     extract_europarl.py   parses raw Europarl text into Documents (pseudo-docs of 500 sentences --
                            the real release has no <CHAPTER> tags, see module docstring)
@@ -248,7 +248,7 @@ documented here, but are easy to revisit if they turn out to matter.
 ## Stage 4 decisions
 
 - **Split between reusable loop and CLI harness (agreed pattern from
-  Stage 3):** `src/metronome/train/loop.py`'s `run_training()` trains
+  Stage 3):** `src/language_cadence/train/loop.py`'s `run_training()` trains
   and evaluates exactly ONE `(language, P, seed)` run, given
   already-loaded window arrays -- no file I/O, no results-file
   bookkeeping -- so it can be unit-tested against tiny synthetic data
