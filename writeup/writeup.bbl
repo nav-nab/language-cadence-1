@@ -1,0 +1,27 @@
+\begin{thebibliography}{}
+
+\bibitem[Ghosh et~al., 2024]{ghosh2024morphology}
+Ghosh, P., Vashishth, S., Dabre, R., and Bhattacharyya, P. (2024).
+\newblock A morphology-based investigation of positional encodings.
+\newblock In {\em Proceedings of the 2024 Conference on Empirical Methods in
+  Natural Language Processing}.
+
+\bibitem[Pellegrino et~al., 2011]{pellegrino2011crosslanguage}
+Pellegrino, F., Coup{\'e}, C., and Marsico, E. (2011).
+\newblock A cross-language perspective on speech information rate.
+\newblock {\em Language}, 87(3):539--558.
+
+\bibitem[Stojanovic, 2013]{stojanovic2013crosslinguistic}
+Stojanovic, D. (2013).
+\newblock {\em Cross-Linguistic Comparison of Rhythmic and Phonotactic
+  Similarity}.
+\newblock PhD thesis, University of Hawai'i at M\={a}noa.
+
+\bibitem[Vaswani et~al., 2017]{vaswani2017attention}
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.~N.,
+  Kaiser, {\L}., and Polosukhin, I. (2017).
+\newblock Attention is all you need.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~30.
+
+\end{thebibliography}

@@ -1,6 +1,6 @@
 """
 Unit tests for the PyTorch Π module (src/language_cadence/pe/torch_periodic_pe.py).
-Requires torch to be installed -- see README.md for environment notes.
+Requires torch to be installed -- see docs/DESIGN_LOG.md for environment notes.
 
 Run with:
     python3 -m unittest discover -s tests -v

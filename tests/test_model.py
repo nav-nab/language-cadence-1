@@ -1,6 +1,6 @@
 """
 Unit tests for the Stage 3 GPT model (src/language_cadence/model/).
-Requires torch -- see README.md for environment notes.
+Requires torch -- see docs/DESIGN_LOG.md for environment notes.
 
 Run with:
     python3 -m unittest discover -s tests -v

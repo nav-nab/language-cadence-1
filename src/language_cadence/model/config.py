@@ -41,7 +41,7 @@ class ModelConfig:
 
     # --- Positional encoding (Pi) ---
     P: int = 45           # the period being tested -- THIS is what the Stage 4 sweep varies
-    # Settled via a calibration pilot (see README's "Stage 3 decisions"
+    # Settled via a calibration pilot (see docs/DESIGN_LOG.md's "Stage 3 decisions"
     # section and the project write-up notes for the full comparison and
     # the reasoning): 7 short runs compared additive at amplitude in
     # {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Additive at

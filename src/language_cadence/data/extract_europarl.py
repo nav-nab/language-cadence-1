@@ -66,7 +66,7 @@ FALLBACK_PSEUDO_DOC_SENTENCES = 500
 # merged across all four, to avoid dealing with near-duplicate English
 # sentences that appear (with small translation-pipeline differences)
 # across multiple pair files. This is a deliberate simplification, noted
-# in the project README, and doesn't affect the four non-English
+# in docs/DESIGN_LOG.md, and doesn't affect the four non-English
 # languages at all.
 EUROPARL_PAIRS = {
     "de": "de-en",
