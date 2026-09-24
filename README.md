@@ -16,7 +16,7 @@ and decisions made while turning that design into code.
 - [x] Stage 2: positional encoding module (Π)
 - [x] Stage 3: model
 - [x] Stage 4: training/eval + sweep harness (built and verified here; **real sweep not yet run** -- see Stage 4 decisions)
-- [ ] Stage 5: analysis
+- [x] Stage 5: analysis (real sweep analyzed -- **headline result: Ceiling Confound dominates, see Stage 5 decisions**)
 
 ## Layout
 
@@ -54,6 +54,9 @@ scripts/
   train_sweep.py           Stage 4 CLI: runs the real (language, P, seed) grid via train.loop.run_training,
                             resumable (append-only results file + skip-if-done) -- see Stage 4 decisions.
                             **This is the script Navid runs on his own Mac for the real sweep.**
+  analyze_sweep.py         Stage 5: reads results/sweep_results.jsonl, classifies each language's
+                            test-loss-vs-P curve (interior minimum vs monotonic/boundary), writes
+                            results/sweep_summary.json and figures/sweep_test_loss_vs_P.png
 tests/
   test_preprocess.py       Stage 1 unit tests (stdlib unittest, no torch/pytest required)
   test_periodic_pe.py      Stage 2 unit tests, NumPy reference (incl. exact Pi(n)==Pi(n+P) check)
@@ -65,16 +68,22 @@ tests/
                             reproducibility given a seed, seeds actually diverge, steps spanning more
                             than one epoch), plus train_sweep.py's config-fingerprinting and
                             skip-if-done resumability logic
+  test_analyze_sweep.py    Stage 5 unit tests: the interior-minimum-vs-monotonic classification rule
+                            (incl. the real sweep's actual shape: monotonic decreasing to the boundary),
+                            local-minima detection, and multi-seed averaging in load_sweep_by_language()
 results/
   pilot_results.jsonl      one JSON line per pilot_run.py run: config, eval-loss curve, best/final loss
-  sweep_results.jsonl      NOT YET PRESENT -- created by train_sweep.py once the real sweep is run;
-                            one JSON line per (language, P, seed) run: config_id, eval-loss curve,
-                            final_eval_loss_full (the number Stage 5's analysis will read)
+  sweep_results.jsonl      the real Stage 4 sweep, 70 lines (14 P values x 5 languages x 1 seed): one
+                            JSON line per run -- config_id, eval-loss curve, final_eval_loss_full
+  sweep_summary.json       Stage 5 output: per-language argmin P, min loss, loss at P=45, classification
+                            (interior minimum vs monotonic/boundary), any local minima found
 figures/
   pe_distinguishability_vs_P.png    line plot at H=32 (matches design-phase P≈45 finding)
   pe_distinguishability_heatmap.png distinguishability over (H, P), argmax-P vs H compared to P=2H
   pilot_eval_loss_curves.png        eval loss vs step, one line per pilot (injection, amplitude) combo
   pilot_final_comparison.png        ranked bar chart of best eval loss per combo
+  sweep_test_loss_vs_P.png          Stage 5 headline figure: test loss vs P (log-x), one line per
+                                     language, smoothed overlay, Stage 2's P=45 marked for reference
 ```
 
 Run the pipeline once the raw archives are in place:
@@ -313,11 +322,64 @@ documented here, but are easy to revisit if they turn out to matter.
   sweep -- the full 70-run grid -- has not been run; that's the next
   step, on Navid's own Mac.**
 
+## Stage 5 decisions: results and the Ceiling Confound
+
+The real sweep (`results/sweep_results.jsonl`, 70 runs: 14 P values x 5
+languages x 1 seed) completed cleanly -- one consistent `config_id`
+across all 70 runs, no missing or duplicate `(language, P, seed)`
+combinations, no NaN/non-finite losses, all `final_eval_loss_full`
+values in a sane range (1.74-2.26, well below the untrained-model
+baseline of ln(64)~4.16). `scripts/analyze_sweep.py` (`python3
+scripts/analyze_sweep.py`) reads it, classifies each language's curve,
+and writes `results/sweep_summary.json` and
+`figures/sweep_test_loss_vs_P.png`.
+
+**Headline result: the Ceiling Confound dominates, for every language.**
+All 5 languages' test loss is monotonically decreasing across the ENTIRE
+tested range -- the global minimum is at P=384 (=`max_seq_len`, the
+largest P tested) for English, French, German, Italian, AND Spanish,
+with no exceptions. Per the classification rule agreed before running
+this (interior minimum = argmin strictly inside the tested range, not at
+either boundary): **0/5 languages show an interior minimum.** This is
+exactly the failure mode Issue 1 in the design notes was worried about:
+P is behaving like it enlarges the model's effective positional/context
+range (bigger P -> Pi repeats less within one window -> more
+distinguishable positions available to the model), not like it's
+revealing an intrinsic per-language optimal period. At this project's
+scale (N=384 fixed, one seed), this result gives no evidence for the
+cadence hypothesis as originally framed -- the P=45 geometric peak from
+Stage 2 is NOT where any language's test loss bottoms out; loss keeps
+improving well past it for every language.
+
+**Secondary, much weaker signal (flagged, not relied on):** even though
+every language's GLOBAL minimum is at the boundary, a few languages show
+small LOCAL dips at interior P values -- e.g. German at P=32,
+English at P=32, Spanish at P=24 (full list in
+`sweep_summary.json`'s `local_minima` field per language). These don't
+cluster consistently near P=45 across languages, and with only one seed
+per point, a small single-point dip is exactly what run-to-run noise
+would produce -- **not read as evidence of a real effect** without at
+least a second seed to check whether the same dips reproduce. Recorded
+here (and in project memory for the write-up) as "worth a second seed",
+not as a finding.
+
+**What this means for the project, going forward (not yet acted on --
+for discussion with Navid):** the current setup can't distinguish "P
+gives the model a genuinely better positional encoding at this specific
+period" from "P just gives the model more usable context, up to the
+N=384 ceiling" -- because P=384 was included as the direct Ceiling
+Confound test point, and it won by a wide margin every time. A cleaner
+test would need P's tested range to stay well below N (e.g. re-running
+with a much larger max_seq_len so that even P=384 is a small fraction of
+context, or restricting the P grid to well under N and checking whether
+an interior optimum appears once the boundary effect is no longer
+directly reachable). That's a design decision for a possible Stage 6,
+not implemented here.
 ## Testing
 
-51 unit tests total (`python3 -m pytest tests/ -v` -- see the note above
+58 unit tests total (`python3 -m pytest tests/ -v` -- see the note above
 on why pytest, not plain `unittest`, is needed for full coverage), all
-passing as of Stage 4:
+passing as of Stage 5:
 
 - **`test_preprocess.py`** (Stage 1): chapter-boundary parsing (incl. the
   no-`<CHAPTER>`-tags path, which prints a note rather than a warning --
@@ -356,6 +418,13 @@ passing as of Stage 4:
   and changes when a hyperparameter changes, and `_load_existing_keys()` /
   the dry-run skip logic correctly identify already-done vs remaining
   runs.
+- **`test_analyze_sweep.py`** (Stage 5): the interior-minimum-vs-monotonic
+  classification rule against synthetic curves (monotonic decreasing --
+  the real sweep's actual shape --, a true interior dip, monotonic
+  increasing, and a local dip that coexists with a boundary global
+  minimum), and that `load_sweep_by_language()` correctly averages
+  multiple seeds per `(language, P)` while passing single-seed data
+  through unchanged.
 
 Beyond unit tests, several things were checked against real (not
 synthetic) data, not just automated fixtures:
