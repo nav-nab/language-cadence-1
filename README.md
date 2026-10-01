@@ -1,47 +1,34 @@
 # Language Cadence: A Null Result
 
-Small laptop-scale ML research project testing whether tuning the period of
-a *periodic* positional encoding, per language, improves GPT pretraining
-loss. Read the full write-up: **[`writeup/writeup.pdf`](writeup/writeup.pdf)**.
+**Does tuning a positional encoding's period, language by language, make GPT pretraining better?** I built a transformer from scratch to test it. The short answer is no. The long answer is a cautionary tale about how easily a boundary effect can masquerade as a real result, and that part is more interesting than the short answer.
 
-> Positional encodings in transformer language models are usually
-> language-agnostic: the original geometric encoding of Vaswani et al.
-> (2017) uses a fixed spread of frequencies regardless of what is being
-> modeled. This work asks a narrower question: if a strictly *periodic*
-> positional encoding is used instead, does tuning its period per language
-> improve next-token pretraining loss in an otherwise-fixed, from-scratch
-> GPT? The idea has some loose motivation from linguistics — languages are
-> sometimes claimed to differ in rhythmic timing — but the experiment is
-> evaluated purely on pretraining loss, independent of whether that
-> linguistic distinction holds up. We sweep the period across 14 values and
-> five languages (English, French, German, Italian, Spanish; 70 runs total)
-> and find no benefit from per-language tuning: for every language, test
-> loss decreases monotonically as the period grows, all the way to the
-> model's context length. This is a boundary effect rather than a genuine
-> positional optimum — a long period simply gives the model more usable
-> context within a fixed window, rather than encoding any exploitable
-> periodic structure. Supporting this reading, a geometric property of the
-> encoding explicitly designed to penalize very long periods turns out to
-> be *positively* correlated with test loss across the sweep (Pearson
-> r = +0.930), the opposite of what that design predicts. We report this
-> as a null result and identify the character-level tokenizer used here as
-> a likely reason the underlying idea was not given a fair test.
+**📄 [Read the full write-up](writeup/writeup.pdf)**
+
+## The idea
+
+The standard positional encoding in transformers spreads frequencies evenly, with no regard for the language being modeled. This project asked a narrower question: what if the encoding is strictly periodic instead? Does tuning that period per language improve next-token prediction? Linguists sometimes claim that languages differ in rhythmic timing, and that claim gave the idea some loose motivation. But the test itself was purely empirical: does it lower pretraining loss?
+
+## What happened
+
+The period was swept across 14 values and five languages — English, French, German, Italian, and Spanish — for 70 training runs in total. Every language told the same story: test loss kept falling as the period grew, all the way out to the model's context length. That's not a tuned optimum. It's a boundary effect: a longer period just hands the model more usable context inside a fixed window, rather than encoding any real periodic structure.
+
+A follow-up analysis confirmed it. The encoding was deliberately designed to penalize very long periods, on the theory that long periods make neighboring positions harder to distinguish. If that geometric property mattered for performance, distinguishability and test loss should move in opposite directions. They didn't. They were *positively* correlated across the sweep (Pearson r = +0.930) — the opposite of what the design predicted.
+
+## Bottom line
+
+This is a null result, and it's reported as one. The character-level tokenizer used here is the likely reason the underlying idea never got a fair test. The full story, including the mathematics behind the encoding, is in the write-up.
 
 ![Test loss vs. period, by language](figures/sweep_test_loss_vs_P.png)
 
-## Contents
+## Repo contents
 
-- **[`writeup/writeup.pdf`](writeup/writeup.pdf)** — the paper (start here).
-- **[`docs/DESIGN_LOG.md`](docs/DESIGN_LOG.md)** — implementation log: how the
-  idea was turned into code, stage by stage, and every design decision made
-  along the way.
-- **`src/language_cadence/`** — data pipeline, positional encoding module,
-  model, and training loop.
-- **`scripts/`** — CLI entry points for each stage (data build, sweep,
-  analysis).
-- **`data/`, `results/`, `figures/`** — processed data, raw sweep results,
-  and generated figures.
+- **[`writeup/writeup.pdf`](writeup/writeup.pdf)** — the paper. Start here.
+- **[`docs/DESIGN_LOG.md`](docs/DESIGN_LOG.md)** — the implementation log: how the idea became code, stage by stage, with every design decision recorded along the way.
+- **`src/language_cadence/`** — the data pipeline, positional encoding module, model, and training loop.
+- **`scripts/`** — CLI entry points for each stage: data build, sweep, analysis.
+- **`data/`, `results/`, `figures/`** — processed data, raw sweep results, and generated figures.
 - **`tests/`** — unit tests (`python3 -m pytest tests/ -v`).
+- **[`scripts/inference/`](scripts/inference/)** — a small desktop GUI for generating text from a trained checkpoint, prompt in, text streams out indefinitely.
 
 ## Reproducing
 
