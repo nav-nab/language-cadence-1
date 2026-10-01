@@ -131,6 +131,21 @@ class GenerationWorker:
 class App:
     POLL_MS = 30  # how often the GUI drains the character queue -- frequent enough to feel live
 
+    # Explicit colors throughout, rather than relying on ttk's theme
+    # defaults: ttk's native themes (e.g. "aqua" on macOS) render some
+    # widgets -- buttons especially -- with the OS's own light/dark-mode
+    # colors and largely ignore foreground/background options passed to
+    # the widget, which is how a dark-mode system can end up rendering
+    # white text on a white background. Switching to the "clam" theme
+    # (a cross-platform, Tcl-only theme, not a native one) makes ttk
+    # actually respect the colors set below, on any platform.
+    BG = "#f5f5f5"
+    FG = "#111111"
+    MUTED_FG = "#555555"
+    TEXT_BG = "#ffffff"
+    TEXT_FG = "#111111"
+    BUTTON_BG = "#e4e4e4"
+
     def __init__(self, root, checkpoint_path: Path):
         import tkinter as tk
         from tkinter import ttk
@@ -138,6 +153,20 @@ class App:
         self.root = root
         root.title("Language Cadence -- Inference")
         root.geometry("720x520")
+        root.configure(bg=self.BG)
+
+        style = ttk.Style(root)
+        style.theme_use("clam")
+        style.configure("TFrame", background=self.BG)
+        style.configure("TLabel", background=self.BG, foreground=self.FG)
+        style.configure("Muted.TLabel", background=self.BG, foreground=self.MUTED_FG)
+        style.configure("TButton", background=self.BUTTON_BG, foreground=self.FG)
+        style.map(
+            "TButton",
+            background=[("disabled", self.BG), ("active", "#d0d0d0")],
+            foreground=[("disabled", self.MUTED_FG)],
+        )
+        style.configure("TSpinbox", fieldbackground=self.TEXT_BG, foreground=self.TEXT_FG)
 
         self.model, self.vocab, ckpt = load_model(checkpoint_path)
         self.worker = GenerationWorker(self.model, self.vocab)
@@ -148,12 +177,15 @@ class App:
             f"P: {ckpt['config']['P']}   "
             f"steps trained: {ckpt.get('steps', '?')}"
         )
-        ttk.Label(root, text=info, foreground="#555").pack(anchor="w", padx=10, pady=(8, 0))
+        ttk.Label(root, text=info, style="Muted.TLabel").pack(anchor="w", padx=10, pady=(8, 0))
 
         prompt_frame = ttk.Frame(root)
         prompt_frame.pack(fill="x", padx=10, pady=8)
         ttk.Label(prompt_frame, text="Prompt (optional):").pack(anchor="w")
-        self.prompt_entry = tk.Text(prompt_frame, height=3, wrap="word")
+        self.prompt_entry = tk.Text(
+            prompt_frame, height=3, wrap="word",
+            bg=self.TEXT_BG, fg=self.TEXT_FG, insertbackground=self.TEXT_FG,
+        )
         self.prompt_entry.pack(fill="x", pady=(2, 0))
 
         controls = ttk.Frame(root)
@@ -176,7 +208,10 @@ class App:
 
         output_frame = ttk.Frame(root)
         output_frame.pack(fill="both", expand=True, padx=10, pady=(4, 10))
-        self.output_text = tk.Text(output_frame, wrap="word", state="disabled", bg="#fafafa")
+        self.output_text = tk.Text(
+            output_frame, wrap="word", state="disabled",
+            bg=self.TEXT_BG, fg=self.TEXT_FG, insertbackground=self.TEXT_FG,
+        )
         scrollbar = ttk.Scrollbar(output_frame, command=self.output_text.yview)
         self.output_text.configure(yscrollcommand=scrollbar.set)
         self.output_text.pack(side="left", fill="both", expand=True)
