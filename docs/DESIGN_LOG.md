@@ -487,3 +487,23 @@ small synthetic multi-language corpus (fake `<CHAPTER>`-tagged text) to
 confirm `build_dataset.py` runs cleanly from raw archive to saved
 `.npy` files -- that test data was generated, checked, and deleted, not
 committed.
+
+## Post-Stage-5 addition: an inference GUI
+
+Added after the write-up was finalized, purely for interactive
+exploration -- not part of the Stage 1-5 research pipeline and not
+discussed in the paper. `scripts/inference/train_checkpoint.py` fills
+the gap the sweep deliberately left (Stage 4's append-only
+results-file design never saved model weights, only loss numbers) by
+training a GPT and saving a checkpoint; `scripts/inference/generate_gui.py`
+is a tkinter desktop app that loads a checkpoint and streams
+generated text, one character at a time, from an optional prompt,
+until stopped. See `scripts/inference/README.md` for usage.
+
+`checkpoints/en_P384.pt` (committed) uses the sweep's own
+best-performing configuration -- English, P=384 -- trained for 1200
+steps in short, resumable chunks (`train_checkpoint.py --resume-from`)
+rather than the real sweep's 3000-step budget per run. At 1200 steps
+it produces word-fragment-level text, not fluent English; this is a
+proof of concept for the inference path, not a claim about generation
+quality.
