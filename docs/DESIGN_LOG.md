@@ -210,10 +210,10 @@ documented here, but are easy to revisit if they turn out to matter.
   ("additive" or "concat") and `ModelConfig.pe_amplitude`. **Settled**
   via a calibration pilot (`scripts/pilot_run.py` /
   `scripts/pilot_analyze.py`, results in `results/pilot_results.jsonl`,
-  figures in `figures/pilot_*.png`): 7 short training runs (English only,
+  figures in `figures/pilot_*.png`): 8 short training runs: 7 additive amplitudes plus one concat (English only,
   P=45 fixed, seq_len=128, D=64, 2 layers, 2000 steps, one seed held
   constant across runs) comparing additive at amplitude in
-  {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Additive at
+  {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Note the pilot used a smaller model than the sweep (2 layers, seq_len=128, 2000 steps). Additive at
   amplitude=0.1 reached the numerically lowest eval loss (2.243), but
   only narrowly ahead of concat (2.264) -- a margin well within what a
   single-seed, short, one-language pilot could produce as noise. **Chose
@@ -221,7 +221,7 @@ documented here, but are easy to revisit if they turn out to matter.
   because of a structural advantage the numbers alone don't capture: no
   amplitude hyperparameter to get wrong. Amplitude turned out to have a
   narrow, saturating sweet spot -- amplitude=2.0 and amplitude=4.0
-  produced numerically matching results, because every transformer
+  produced eval curves agreeing to within about 0.002, because every transformer
   block's leading LayerNorm is scale-invariant
   (`LayerNorm(c*v) == LayerNorm(v)`), so past a certain point the token
   embedding becomes negligible next to amplitude*Pi and further scaling
@@ -348,8 +348,8 @@ and writes `results/sweep_summary.json` and
 `figures/sweep_test_loss_vs_P.png`.
 
 **Headline result: the Ceiling Confound dominates, for every language.**
-All 5 languages' test loss is monotonically decreasing across the ENTIRE
-tested range -- the global minimum is at P=384 (=`max_seq_len`, the
+All 5 languages' test loss trends downward across the tested range (not strictly
+monotone: see the local dips below) -- the global minimum is at P=384 (=`max_seq_len`, the
 largest P tested) for English, French, German, Italian, AND Spanish,
 with no exceptions. Per the classification rule agreed before running
 this (interior minimum = argmin strictly inside the tested range, not at
@@ -381,7 +381,7 @@ for discussion with Navid):** the current setup can't distinguish "P
 gives the model a genuinely better positional encoding at this specific
 period" from "P just gives the model more usable context, up to the
 N=384 ceiling" -- because P=384 was included as the direct Ceiling
-Confound test point, and it won by a wide margin every time. A cleaner
+Confound test point, and it had the lowest loss every time (margin over P=256 ranges from 0.021 for Italian to 0.176 for English). A cleaner
 test would need P's tested range to stay well below N (e.g. re-running
 with a much larger max_seq_len so that even P=384 is a small fraction of
 context, or restricting the P grid to well under N and checking whether
@@ -390,8 +390,8 @@ directly reachable). That's a design decision for a possible Stage 6,
 not implemented here.
 
 **Follow-up figure (prompted by Navid's own observation while reviewing
-the results):** Pi was deliberately designed (Stage 2) so that an
-overly long P makes neighbouring positions harder to distinguish --
+the results):** With H fixed, an
+overly long P makes neighbouring positions harder to distinguish (a geometric consequence of the Stage 2 construction, measured after the fact, not a penalty built into the code) --
 distinguishability peaks at P=45 then falls sharply for larger P. If
 that geometric property mattered for trained performance, distinguishability
 and test loss should move in OPPOSITE directions (more distinguishable
@@ -488,7 +488,9 @@ confirm `build_dataset.py` runs cleanly from raw archive to saved
 `.npy` files -- that test data was generated, checked, and deleted, not
 committed.
 
-## Post-Stage-5 addition: an inference GUI
+## Post-Stage-5 addition: an inference GUI (since removed)
+
+**Note:** the `scripts/inference/` files described below were deleted in the "Tweaks" commit and are no longer in the repo. The section is kept as history. `checkpoints/en_P384.pt` remains.
 
 Added after the write-up was finalized, purely for interactive
 exploration -- not part of the Stage 1-5 research pipeline and not

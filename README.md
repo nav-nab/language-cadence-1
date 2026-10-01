@@ -28,7 +28,6 @@ This is a null result, and it's reported as one. The character-level tokenizer u
 - **`scripts/`** — CLI entry points for each stage: data build, sweep, analysis.
 - **`data/`, `results/`, `figures/`** — processed data, raw sweep results, and generated figures.
 - **`tests/`** — unit tests (`python3 -m pytest tests/ -v`).
-- **[`scripts/inference/`](scripts/inference/)** — a small desktop GUI for generating text from a trained checkpoint, prompt in, text streams out indefinitely.
 
 ## Reproducing
 

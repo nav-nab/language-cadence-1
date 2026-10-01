@@ -43,7 +43,7 @@ class ModelConfig:
     P: int = 45           # the period being tested -- THIS is what the Stage 4 sweep varies
     # Settled via a calibration pilot (see docs/DESIGN_LOG.md's "Stage 3 decisions"
     # section and the project write-up notes for the full comparison and
-    # the reasoning): 7 short runs compared additive at amplitude in
+    # the reasoning): 8 short runs (7 additive amplitudes plus concat) compared additive at amplitude in
     # {0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0} against concat. Additive at
     # amplitude=0.1 reached the numerically lowest eval loss, but only
     # narrowly ahead of concat (2.243 vs 2.264 -- a margin well within
