@@ -1,5 +1,7 @@
 # Language Cadence: A Null Result
 
+<img src="assets/avatar.svg" width="100" alt="Tempo, the language-cadence mascot">
+
 **Does tuning a positional encoding's period, language by language, make GPT pretraining better?** I built a transformer from scratch to test it. The short answer is no. The long answer is a cautionary tale about how easily a boundary effect can masquerade as a real result, and that part is more interesting than the short answer.
 
 **📄 [Read the full write-up](writeup/writeup.pdf)**
